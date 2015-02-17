@@ -89,7 +89,11 @@ Amygdala.prototype.ajax = function ajax(method, url, options) {
     if (request.status.toString().substr(0, 2) === '20') {
       deferred.resolve(request);
     } else {
-      deferred.reject(new Error('Request failed with status code ' + request.status));
+      // deferred.reject(new Error('Request failed with status code ' + request.status));
+      deferred.reject({
+        error: new Error('Request failed with status code ' + request.status), 
+        request: request
+      });
     }
   };
 
@@ -375,6 +379,20 @@ Amygdala.prototype._put = function(url, data) {
   return this.ajax('PUT', this._validateURI(url), settings);
 }
 
+Amygdala.prototype._patch = function(url, data) {
+  // AJAX put request wrapper
+  // TODO: make this method public in the future
+
+  // Request settings
+  var settings = {
+    'data': JSON.stringify(data),
+    'contentType': 'application/json',
+    'headers': this._headers
+  };
+
+  return this.ajax('PATCH', this._validateURI(url), settings);
+}
+
 Amygdala.prototype.update = function(type, object) {
   // POST/PUT request for `object` in `type`
   //
@@ -391,6 +409,21 @@ Amygdala.prototype.update = function(type, object) {
   }
 
   return this._put(url, object)
+    .then(_.partial(this._setAjax, type).bind(this));
+};
+
+Amygdala.prototype.patch = function(type, object) {
+  var url = object.url;
+
+  if (!url && this._config.idAttribute in object) {
+    url = this._getURI(type, object);
+  }
+
+  if (!url) {
+    throw new Error('Missing required object.url or ' + this._config.idAttribute + ' attribute.');
+  }
+
+  return this._patch(url, object)
     .then(_.partial(this._setAjax, type).bind(this));
 };
 
@@ -412,16 +445,17 @@ Amygdala.prototype.remove = function(type, object) {
   // type: schema key/store (teams, users)
   // object: object to update local and remote
   var url = object.url;
+  var data_object = _.clone(object);
 
   if (!url && this._config.idAttribute in object) {
-    url = this._getURI(type, object);
+    url = this._getURI(type, data_object);
   }
 
   if (!url) {
     throw new Error('Missing required object.url or ' + this._config.idAttribute + ' attribute.');
   }
-
-  return this._delete(url, object)
+  // _remove expects object to have id, which was removed in _getURI
+  return this._delete(url, data_object)
     .then(_.partial(this._remove, type, object).bind(this));
 };
 
